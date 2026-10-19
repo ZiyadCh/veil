@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Relations JPA : unidirectionnelle et bidirectionnelle</title>
+<style>
+:root{--bg:#f3f6f4;--surface:#ffffff;--ink:#14231c;--mute:#52665c;--accent:#0d6b4f;--accent2:#b4462b;--code:#0f2a21;--codeink:#d9f2e6;--line:#cfdcd5;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1814;--surface:#16251f;--ink:#e6f1ea;--mute:#9bb2a6;--accent:#4fd1a0;--accent2:#f09274;--code:#091410;--codeink:#cdeedd;--line:#2a4036}}
+:root[data-theme="dark"]{--bg:#0e1814;--surface:#16251f;--ink:#e6f1ea;--mute:#9bb2a6;--accent:#4fd1a0;--accent2:#f09274;--code:#091410;--codeink:#cdeedd;--line:#2a4036}
+*{box-sizing:border-box}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:17px/1.5 "Source Serif 4",Georgia,"Times New Roman",serif;overflow:hidden}
+.deck{height:100%;position:relative}
+.slide{position:absolute;inset:0;padding:clamp(18px,4vw,56px) clamp(18px,6vw,88px) 76px;display:none;overflow-y:auto}
+.slide.on{display:block}
+h1,h2,h3{font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;line-height:1.15;margin:0 0 .5em}
+h1{font-size:clamp(30px,5.5vw,58px);color:var(--accent)}
+h2{font-size:clamp(24px,3.6vw,38px);border-left:6px solid var(--accent);padding-left:14px}
+h3{font-size:1.05rem;color:var(--accent2);margin:.2em 0 .3em}
+p,li{max-width:70ch}
+.sub{color:var(--mute);font-size:1.15rem;max-width:58ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+pre{background:var(--code);color:var(--codeink);border-radius:8px;padding:14px 16px;overflow-x:auto;font:13.5px/1.5 Consolas,"Courier New",monospace;margin:.6em 0}
+code{font-family:Consolas,"Courier New",monospace;font-size:.9em;background:color-mix(in srgb,var(--accent) 14%,transparent);padding:1px 5px;border-radius:4px}
+pre code{background:none;padding:0}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;background:var(--surface);font-size:.95rem}
+th,td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:color-mix(in srgb,var(--accent) 16%,var(--surface));font-family:"Trebuchet MS",system-ui,sans-serif}
+.warn{border-left:5px solid var(--accent2);background:color-mix(in srgb,var(--accent2) 10%,var(--surface));padding:10px 14px;border-radius:0 8px 8px 0;margin-top:12px}
+ul{padding-left:1.2em;margin:.3em 0}
+.bar{position:fixed;left:0;right:0;bottom:0;display:flex;align-items:center;gap:12px;padding:10px clamp(14px,4vw,40px) calc(10px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--line);font-family:"Trebuchet MS",system-ui,sans-serif;font-size:14px}
+.prog{flex:1;height:5px;background:var(--line);border-radius:3px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent);width:0;transition:width .2s}
+button{font:inherit;background:var(--accent);color:var(--bg);border:0;border-radius:6px;padding:7px 16px;cursor:pointer}
+button:focus-visible{outline:3px solid var(--accent2);outline-offset:2px}
+button:disabled{opacity:.35;cursor:default}
+pre .c{color:#7fa393;font-style:italic}pre .s{color:#a6e3a1}pre .a{color:#f9c74f}pre .k{color:#c792ea}pre .t{color:#7fd1f0}pre .m{color:#82aaff}pre .n{color:#f78c6c}pre .q{color:#ff8fa3}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="deck" id="deck">
+
+<section class="slide">
+<h1 style="font-size:clamp(26px,4.4vw,44px)">Relations JPA : unidirectionnelle et bidirectionnelle</h1>
+<p class="sub">Fil rouge : un <code>Client</code> possède plusieurs <code>Commande</code>. Au programme : navigation, base de données, JSON, chargement, cascade, <code>orphanRemoval</code>, bonnes pratiques.</p>
+<h2 style="margin-top:22px">1. Définitions</h2>
+<div class="grid">
+<div class="card"><h3>Unidirectionnelle</h3><p>Une seule entité connaît l’autre : une seule référence Java.</p>
+<pre><code>@Entity
+public class Commande {
+  @Id @GeneratedValue
+  private Long id;
+
+  @ManyToOne
+  @JoinColumn(name = "client_id")
+  private Client client;
+}
+// Client ne connaît pas ses commandes</code></pre></div>
+<div class="card"><h3>Bidirectionnelle</h3><p>Les deux entités se connaissent : une référence dans chaque classe.</p>
+<pre><code>@Entity
+public class Client {
+  @Id @GeneratedValue
+  private Long id;
+  private String nom;
+
+  @OneToMany(mappedBy = "client")
+  private List&lt;Commande&gt; commandes
+      = new ArrayList&lt;&gt;();
+}
+// Commande reste inchangée</code></pre></div>
+</div>
+</section>
+
+<section class="slide">
+<h2>2. Sens de navigation : qui connaît qui ?</h2>
+<p>On navigue de A vers B <strong>uniquement si A possède un attribut (et un getter) vers B</strong>.</p>
+<div class="tw"><table>
+<tr><th>Relation</th><th>Navigation possible</th></tr>
+<tr><td>Unidirectionnelle <code>Commande → Client</code></td><td><code>commande.getClient()</code> ✅<br><code>client.getCommandes()</code> ❌ n’existe pas</td></tr>
+<tr><td>Bidirectionnelle</td><td><code>commande.getClient()</code> ✅ et <code>client.getCommandes()</code> ✅</td></tr>
+</table></div>
+<pre><code>Commande c = commandeRepository.findById(1L).orElseThrow();
+String nom = c.getClient().getNom();      // Commande → Client
+
+Client cl = clientRepository.findById(1L).orElseThrow();
+int nb = cl.getCommandes().size();        // bidirectionnel seulement</code></pre>
+<p>Sans navigation <code>Client → Commandes</code> : passer par une requête, <code>commandeRepository.findByClientId(id)</code>.</p>
+</section>
+
+<section class="slide">
+<h2>3. Impact sur la base de données</h2>
+<div class="grid">
+<div class="card"><h3>Schéma identique dans les deux cas</h3>
+<pre><code>CLIENT   (id, nom)
+COMMANDE (id, client_id → FK CLIENT.id)</code></pre>
+<p>Passer en bidirectionnel n’ajoute <strong>aucune colonne</strong>, seulement un attribut Java.</p></div>
+<div class="card"><h3>Côté propriétaire</h3><p>Celui qui <strong>contrôle la clé étrangère</strong> : JPA ne lit que lui pour écrire. Ici, c’est le côté <code>@ManyToOne</code>.</p>
+<h3>Rôle de <code>mappedBy</code></h3><p>Placé côté <strong>inverse</strong> pour dire à JPA de ne pas créer un second mapping. Explication détaillée à la diapositive suivante.</p></div>
+</div>
+<div class="warn"><strong>Piège :</strong> seul le côté propriétaire est persisté. Synchroniser les deux côtés :
+<pre><code>public void addCommande(Commande c) {
+  commandes.add(c);
+  c.setClient(this);   // c’est ce côté qui écrit la FK
+}</code></pre></div>
+</section>
+
+<section class="slide">
+<h2><code>mappedBy</code> en une page</h2>
+<p>En bidirectionnel, il y a <strong>deux attributs Java</strong> mais <strong>une seule clé étrangère</strong>. <code>mappedBy</code> indique à JPA que les deux attributs décrivent la même relation et que <strong>l’autre côté</strong> est chargé de l’écrire en base.</p>
+<div class="grid">
+<div class="card"><h3>Le code</h3>
+<pre><code>// Client (côté inverse)
+@OneToMany(mappedBy = "client")
+private List&lt;Commande&gt; commandes;
+
+// Commande (côté propriétaire)
+@ManyToOne
+@JoinColumn(name = "client_id")
+private Client client;   // ← "client"</code></pre>
+<p>La valeur de <code>mappedBy</code> est le <strong>nom de l’attribut Java</strong> de l’autre classe, pas une colonne.</p></div>
+<div class="card"><h3>Ce qui se passe</h3>
+<ul>
+<li><strong>Démarrage :</strong> Hibernate retrouve l’attribut <code>client</code> dans <code>Commande</code> et réutilise son mapping. Aucune colonne ni table en plus.</li>
+<li><strong>Lecture :</strong> <code>client.getCommandes()</code> lance <code>SELECT ... FROM commande WHERE client_id = ?</code>.</li>
+<li><strong>Écriture :</strong> seule <code>Commande.client</code> alimente <code>client_id</code>. Le contenu de la liste est <strong>ignoré</strong>.</li>
+</ul></div>
+<div class="card"><h3>Sans <code>mappedBy</code></h3>
+<p>Hibernate voit deux relations indépendantes et crée une <strong>table de jointure inutile</strong> <code>client_commandes</code>, en plus de <code>commande.client_id</code>.</p></div>
+<div class="card"><h3>Règles</h3>
+<ul>
+<li>Toujours côté inverse (<code>@OneToMany</code>), jamais sur le <code>@ManyToOne</code>.</li>
+<li>Un nom incorrect fait échouer le démarrage.</li>
+<li>Il ne gère ni cascade ni chargement.</li>
+</ul></div>
+</div>
+<div class="warn"><strong>Piège :</strong> <code>client.getCommandes().add(c)</code> seul laisse <code>client_id = NULL</code>, sans erreur. Il faut aussi <code>c.setClient(client)</code>, d’où les méthodes <code>addCommande</code> / <code>removeCommande</code>.</div>
+</section>
+
+<section class="slide">
+<h2>4. Sérialisation JSON : le problème</h2>
+<p>Avec une relation bidirectionnelle, chaque entité référence l’autre. Quand un contrôleur renvoie un <code>Client</code>, Jackson parcourt le graphe via les getters :</p>
+<ol>
+<li>Il sérialise <code>Client</code> : il a <code>commandes</code>, donc il sérialise chaque <code>Commande</code>.</li>
+<li>Il sérialise une <code>Commande</code> : elle a <code>client</code>, donc il sérialise le <code>Client</code>.</li>
+<li>Ce <code>Client</code> a <code>commandes</code>… et la boucle recommence.</li>
+</ol>
+<p>Jackson ne sait pas qu’il a déjà visité ces objets. Résultat : <code>StackOverflowError</code> ou <code>HttpMessageNotWritableException</code> (« Infinite recursion »), avec une longue trace qui répète <code>Client</code> et <code>Commande</code>.</p>
+<p><strong>Ce que Jackson tente d’écrire</strong> : les mêmes objets reviennent à chaque niveau, sans jamais s’arrêter.</p>
+<pre><code>{
+  "id": 1, "nom": "Alami",
+  "commandes": [{
+    "id": 10,
+    "client": {                  // le même Client
+      "id": 1, "nom": "Alami",
+      "commandes": [{            // la même Commande
+        "id": 10,
+        "client": { ... }        // et ainsi de suite
+      }]
+    }
+  }]
+}</code></pre>
+<div class="grid">
+<div class="card"><h3>Seulement en bidirectionnel</h3><p>En unidirectionnel <code>Commande → Client</code>, la sérialisation s’arrête au <code>Client</code>, qui n’a pas de chemin de retour.</p></div>
+<div class="card"><h3>Problème lié : le lazy loading</h3><p><code>Client.commandes</code> est <code>LAZY</code>. Si Jackson sérialise après la fin de la transaction (cas typique), <code>getCommandes()</code> lève une <code>LazyInitializationException</code>. Renvoyer directement des entités reste fragile même sans boucle.</p></div>
+</div>
+</section>
+
+<section class="slide">
+<h2>Sérialisation JSON : la solution par DTO</h2>
+<p>Un <strong>DTO</strong> est une classe simple, distincte de l’entité, qui décrit exactement ce que l’API renvoie. On mappe l’entité vers le DTO et on renvoie le DTO.</p>
+<pre><code>public record CommandeDto(Long id, LocalDate date, Long clientId) {}
+public record ClientDto(Long id, String nom, List&lt;CommandeDto&gt; commandes) {}</code></pre>
+<p><code>CommandeDto</code> porte <code>clientId</code> (un <code>Long</code>), pas un objet <code>Client</code> : le graphe est un arbre, sans cycle.</p>
+<p><strong>JSON obtenu</strong> : l’imbrication s’arrête après un niveau.</p>
+<pre><code>{
+  "id": 1, "nom": "Alami",
+  "commandes": [
+    { "id": 10, "date": "2026-10-19", "clientId": 1 }
+  ]
+}</code></pre>
+<p>Le mapping se fait dans la couche service, tant que la transaction est ouverte :</p>
+<pre><code>public ClientDto toDto(Client c) {
+  List&lt;CommandeDto&gt; cmds = c.getCommandes().stream()
+    .map(cmd -&gt; new CommandeDto(cmd.getId(), cmd.getDate(), c.getId()))
+    .toList();
+  return new ClientDto(c.getId(), c.getNom(), cmds);
+}</code></pre>
+<div class="grid">
+<div class="card"><h3>Ce que cela résout</h3><ul><li><strong>Pas de boucle :</strong> la structure est un arbre.</li><li><strong>Pas d’exception lazy :</strong> la collection est lue dans le service, session ouverte.</li><li><strong>Sortie maîtrisée :</strong> un champ sensible ajouté à l’entité ne fuit pas dans l’API.</li></ul></div>
+<div class="card"><h3>Autres avantages</h3><ul><li><strong>Découplage :</strong> le modèle de persistance peut évoluer sans casser l’API.</li><li><strong>Forme par cas d’usage :</strong> un <code>ClientSummaryDto</code> léger pour les listes, un <code>ClientDto</code> complet pour le détail.</li></ul><p>Coût : du code de mapping, réductible avec MapStruct.</p></div>
+</div>
+</section>
+
+<section class="slide">
+<h2>5. Chargement : LAZY vs EAGER</h2>
+<p>Le <strong>fetch type</strong> décide <strong>quand</strong> JPA charge l’entité associée.</p>
+<div class="tw"><table>
+<tr><th></th><th><code>LAZY</code></th><th><code>EAGER</code></th></tr>
+<tr><td>Chargement</td><td>À la première utilisation de la relation</td><td>Tout de suite, avec le parent</td></tr>
+<tr><td>Avantage</td><td>On ne charge que ce qui sert</td><td>Données déjà disponibles, même hors transaction</td></tr>
+<tr><td>Risque</td><td><code>LazyInitializationException</code></td><td>Graphes inutiles, requêtes en cascade</td></tr>
+</table></div>
+<div class="grid">
+<div class="card"><h3>Valeurs par défaut</h3><ul><li><code>@ManyToOne</code>, <code>@OneToOne</code> : <strong>EAGER</strong></li><li><code>@OneToMany</code>, <code>@ManyToMany</code> : <strong>LAZY</strong></li></ul>
+<pre><code>@ManyToOne(fetch = FetchType.LAZY)
+private Client client;</code></pre></div>
+<div class="card"><h3>Comment fonctionne LAZY</h3>
+<p>Hibernate injecte un <strong>proxy</strong> (ou une collection spéciale) à la place des vraies données. Le premier accès (<code>getNom()</code>, <code>size()</code>) déclenche un <code>SELECT</code>, à condition que la session soit encore ouverte.</p></div>
+<div class="card"><h3><code>LazyInitializationException</code></h3>
+<p>Accès à une relation LAZY <strong>après la fin de la transaction</strong> (souvent à la sérialisation). Solutions : lire dans une méthode <code>@Transactional</code> du service, charger avec <code>JOIN FETCH</code>/<code>@EntityGraph</code>, ou mapper en DTO dans le service.</p></div>
+<div class="card"><h3>EAGER : piège</h3>
+<p><code>findById</code> charge l’association avec une jointure, mais une requête JPQL ou <code>findAll()</code> ignore le EAGER et lance <strong>une requête de plus par ligne</strong>. EAGER ne protège donc pas du N+1 et ne se désactive pas au cas par cas.</p></div>
+</div>
+</section>
+
+<section class="slide">
+<h2>Chargement : le problème N+1 et ses solutions</h2>
+<p>On charge 100 commandes, puis on lit <code>getClient().getNom()</code> sur chacune : <strong>1 requête</strong> pour les commandes + <strong>100 requêtes</strong> pour les clients.</p>
+<pre><code>List&lt;Commande&gt; cs = commandeRepository.findAll();   // 1 requête
+for (Commande c : cs)
+    System.out.println(c.getClient().getNom());      // + N requêtes</code></pre>
+<div class="grid">
+<div class="card"><h3><code>JOIN FETCH</code></h3>
+<pre><code>@Query("SELECT c FROM Client c
+        JOIN FETCH c.commandes
+        WHERE c.id = :id")
+Optional&lt;Client&gt; findByIdWithCommandes(Long id);</code></pre>
+<p>Une seule requête avec jointure.</p></div>
+<div class="card"><h3><code>@EntityGraph</code></h3>
+<pre><code>@EntityGraph(attributePaths = "client")
+List&lt;Commande&gt; findAll();</code></pre>
+<p>Même effet, sans écrire de JPQL.</p></div>
+</div>
+<div class="warn"><strong>Limites :</strong> <code>JOIN FETCH</code> d’une collection avec pagination force Hibernate à paginer <strong>en mémoire</strong> ; charger deux collections <code>List</code> à la fois lève <code>MultipleBagFetchException</code>. Alternatives : deux requêtes, ou <code>@BatchSize</code>.</div>
+<p><strong>Règle :</strong> LAZY partout, puis charger explicitement par requête ce dont chaque cas d’usage a besoin.</p>
+</section>
+
+<section class="slide">
+<h2>6. <code>CascadeType</code> : propager les opérations</h2>
+<p>Par défaut, une opération sur le parent <strong>ne touche pas</strong> les entités associées. <code>cascade</code> la propage aux enfants.</p>
+<div class="tw"><table>
+<tr><th>Type</th><th>Effet</th></tr>
+<tr><td><code>PERSIST</code></td><td><code>persist(parent)</code> persiste aussi les enfants nouveaux</td></tr>
+<tr><td><code>MERGE</code></td><td><code>merge(parent)</code> fusionne aussi les enfants</td></tr>
+<tr><td><code>REMOVE</code></td><td><code>remove(parent)</code> supprime aussi les enfants</td></tr>
+<tr><td><code>REFRESH</code> / <code>DETACH</code></td><td>Recharge / détache aussi les enfants</td></tr>
+<tr><td><code>ALL</code></td><td>Tous les types ci-dessus</td></tr>
+</table></div>
+<div class="grid">
+<div class="card"><h3>Avec cascade</h3>
+<pre><code>@OneToMany(mappedBy = "client",
+           cascade = CascadeType.ALL)
+private List&lt;Commande&gt; commandes;
+
+Client cl = new Client("Alami");
+cl.addCommande(new Commande());
+clientRepository.save(cl);  // INSERT client + commande</code></pre></div>
+<div class="card"><h3>Sans cascade</h3>
+<p>Chaque enfant doit être géré à la main, dans le bon ordre.</p>
+<pre><code>Client cl = new Client("Alami");
+Commande cmd = new Commande();
+cl.addCommande(cmd);
+
+clientRepository.save(cl);      // INSERT client
+commandeRepository.save(cmd);   // obligatoire : INSERT commande
+// sans cette ligne : exception au flush
+// (« object references an unsaved transient instance »)</code></pre>
+<p>Même chose à la suppression :</p>
+<pre><code>// delete(cl) seul : violation de clé étrangère
+commandeRepository.deleteAll(cl.getCommandes());
+clientRepository.delete(cl);</code></pre></div>
+</div>
+<div class="warn"><strong>À retenir :</strong> la cascade exprime un <strong>cycle de vie partagé</strong> (une <code>Commande</code> n’existe pas sans son <code>Client</code>), pas un raccourci de sauvegarde. Sur un <code>@ManyToOne</code> vers une entité partagée, elle est presque toujours une erreur : supprimer une commande supprimerait son client. <code>REMOVE</code> sur un <code>@ManyToMany</code> est tout aussi dangereux.</div>
+</section>
+
+<section class="slide">
+<h2>7. <code>orphanRemoval</code> : le principe</h2>
+<p>Un enfant est <strong>orphelin</strong> quand il n’est <strong>plus dans la collection</strong> de son parent. Avec <code>orphanRemoval = true</code>, JPA le considère comme sans raison d’exister et <strong>le supprime de la base</strong>.</p>
+<pre><code>@OneToMany(mappedBy = "client", cascade = CascadeType.ALL, orphanRemoval = true)
+private List&lt;Commande&gt; commandes = new ArrayList&lt;&gt;();</code></pre>
+<p><strong>Situation de départ</strong> : le client 1 a trois commandes (10, 11, 12). On retire la 11.</p>
+<pre><code>Client client = clientRepository.findById(1L).orElseThrow();
+Commande c = client.getCommandes().get(1);   // commande 11
+client.removeCommande(c);                    // retire de la liste + setClient(null)
+// fin de la transaction (flush)</code></pre>
+<div class="grid">
+<div class="card"><h3>Avec <code>orphanRemoval</code></h3>
+<pre><code>DELETE FROM commande WHERE id = 11</code></pre>
+<p>Il reste les commandes 10 et 12.</p></div>
+<div class="card"><h3>Sans <code>orphanRemoval</code></h3>
+<pre><code>UPDATE commande SET client_id = NULL
+WHERE id = 11</code></pre>
+<p>La commande 11 reste en base, <strong>sans client</strong> (ou erreur si <code>client_id</code> est <code>NOT NULL</code>).</p></div>
+</div>
+<p><strong>Pourquoi un mécanisme à part ?</strong> Retirer un élément d’une liste Java ne supprime rien : JPA n’a aucune raison de deviner qu’il faut effacer la ligne. <code>orphanRemoval</code> lui dit de surveiller la collection et de supprimer ce qui en sort.</p>
+</section>
+
+<section class="slide">
+<h2><code>orphanRemoval</code> : cas, conditions et pièges</h2>
+<div class="tw"><table>
+<tr><th>Ce que fait le code</th><th>Sans <code>orphanRemoval</code></th><th>Avec <code>orphanRemoval</code></th></tr>
+<tr><td><code>client.removeCommande(c)</code> (liste + <code>setClient(null)</code>)</td><td><code>UPDATE client_id = NULL</code></td><td><code>DELETE</code> de la commande</td></tr>
+<tr><td><code>client.getCommandes().remove(c)</code> seul</td><td>Rien en base (côté inverse)</td><td><code>DELETE</code> de la commande</td></tr>
+<tr><td><code>c.setClient(null)</code> seul, <code>c</code> encore dans la liste</td><td><code>UPDATE client_id = NULL</code></td><td>Pas de suppression : <code>c</code> n’a pas quitté la collection</td></tr>
+<tr><td><code>clientRepository.delete(client)</code></td><td>Erreur de clé étrangère, sauf <code>REMOVE</code></td><td>Les commandes sont supprimées aussi</td></tr>
+<tr><td><code>client.setCommandes(new ArrayList&lt;&gt;())</code></td><td>Aucun effet en base</td><td>Exception : « A collection with cascade="all-delete-orphan" was no longer referenced »</td></tr>
+</table></div>
+<div class="grid">
+<div class="card"><h3>Conditions</h3><ul>
+<li>Disponible sur <code>@OneToMany</code> et <code>@OneToOne</code>.</li>
+<li>Le parent doit être <strong>géré</strong> (dans une transaction).</li>
+<li>Le <code>DELETE</code> part au <strong>flush</strong>, pas à l’appel de <code>remove</code>.</li>
+</ul></div>
+<div class="card"><h3>Quand l’utiliser</h3><ul>
+<li>Le parent est <strong>propriétaire exclusif</strong> de l’enfant (commande et lignes).</li>
+<li>Jamais si l’enfant peut être rattaché ailleurs ou réutilisé.</li>
+<li>Pour changer la liste : <code>clear()</code>, <code>remove()</code>, <code>add()</code> sur la collection existante.</li>
+</ul></div>
+</div>
+<div class="warn"><strong>Différence avec <code>REMOVE</code> :</strong> <code>REMOVE</code> se déclenche quand on supprime le <strong>parent</strong> ; <code>orphanRemoval</code> quand on retire un <strong>enfant</strong> de la collection. On les combine pour une vraie composition.</div>
+</section>
+
+<section class="slide">
+<h2>8. Bonnes pratiques : choisir le sens de la relation</h2>
+<p>Question à se poser : <strong>de quel côté mon code a-t-il vraiment besoin de naviguer ?</strong></p>
+<div class="tw"><table>
+<tr><th>Besoin</th><th>Choix</th></tr>
+<tr><td>Atteindre le parent depuis l’enfant (<code>commande.getClient()</code>)</td><td>Unidirectionnelle <code>@ManyToOne</code></td></tr>
+<tr><td>Parcourir les enfants depuis le parent (<code>commande.getLignes()</code>) avec cascade et orphelins</td><td>Bidirectionnelle</td></tr>
+<tr><td>Collection énorme (milliers d’éléments)</td><td>Pas de <code>@OneToMany</code> ; requête paginée : <code>commandeRepository.findByClientId(id, pageable)</code></td></tr>
+</table></div>
+<div class="grid">
+<div class="card"><h3>Exemple : une commande et ses lignes</h3>
+<pre><code>// Composition : bidirectionnel + cascade
+Commande 1 &lt;-&gt; * LigneCommande
+  cascade = ALL, orphanRemoval = true
+
+// Référence : unidirectionnel, sans cascade
+LigneCommande * -&gt; 1 Produit
+  @ManyToOne(fetch = LAZY)</code></pre></div>
+<div class="card"><h3>Pourquoi rester simple</h3>
+<p>Chaque direction ajoute de la complexité : synchronisation des deux côtés, <code>mappedBy</code>, boucles JSON, <code>equals</code>/<code>hashCode</code>/<code>toString</code>. On peut <strong>ajouter</strong> l’autre côté plus tard sans changer le schéma SQL.</p></div>
+</div>
+</section>
+
+<section class="slide">
+<h2>Bonnes pratiques : les règles par domaine</h2>
+<div class="tw"><table>
+<tr><th>Domaine</th><th>Règle</th><th>Pourquoi</th></tr>
+<tr><td rowspan="3"><strong>Conception</strong></td><td>Commencer par l’unidirectionnel <code>@ManyToOne</code></td><td>Plus simple et plus performant</td></tr>
+<tr><td>Ajouter l’autre côté seulement pour un besoin réel</td><td>Évite synchronisation et boucles JSON inutiles</td></tr>
+<tr><td>Cascade et <code>orphanRemoval</code> pour la composition seulement</td><td>Ne jamais supprimer une entité partagée</td></tr>
+<tr><td rowspan="4"><strong>Bidirectionnel</strong></td><td><code>mappedBy</code> côté <code>@OneToMany</code></td><td>Pas de table de jointure en trop</td></tr>
+<tr><td>Méthodes <code>addX</code> / <code>removeX</code></td><td>Synchronise les deux côtés, la FK est écrite</td></tr>
+<tr><td>Initialiser les collections (<code>new ArrayList&lt;&gt;()</code>)</td><td>Évite les <code>NullPointerException</code></td></tr>
+<tr><td>Exclure les relations de <code>toString()</code>, <code>equals()</code>, <code>hashCode()</code></td><td>Évite boucles et chargements inattendus</td></tr>
+<tr><td rowspan="2"><strong>Chargement</strong></td><td>LAZY par défaut</td><td>Ne charger que le nécessaire</td></tr>
+<tr><td><code>JOIN FETCH</code> / <code>@EntityGraph</code> par cas d’usage ; surveiller le N+1 dans les logs SQL</td><td>Évite les requêtes en cascade</td></tr>
+<tr><td><strong>API</strong></td><td>Ne jamais exposer les entités en JSON : utiliser des DTO</td><td>Pas de boucle, pas d’exception lazy</td></tr>
+</table></div>
+</section>
+
+<section class="slide">
+<h2>Récapitulatif</h2>
+<div class="tw"><table>
+<tr><th>Concept</th><th>À retenir</th></tr>
+<tr><td>Unidirectionnelle</td><td>Une référence Java ; une FK en base</td></tr>
+<tr><td>Bidirectionnelle</td><td>Deux références Java ; toujours une seule FK</td></tr>
+<tr><td>Côté propriétaire</td><td>Celui qui a la FK (<code>@ManyToOne</code>) ; seul persisté</td></tr>
+<tr><td><code>mappedBy</code></td><td>Côté inverse ; évite une table de jointure en trop</td></tr>
+<tr><td>JSON</td><td>Boucle infinie en bidirectionnel → DTO</td></tr>
+<tr><td><code>LAZY</code> / <code>EAGER</code></td><td>LAZY recommandé ; attention au N+1</td></tr>
+<tr><td><code>CascadeType</code></td><td>Propage les opérations du parent aux enfants</td></tr>
+<tr><td><code>orphanRemoval</code></td><td>Supprime l’enfant retiré de la collection</td></tr>
+<tr><td>Choix</td><td>Simple d’abord ; bidirectionnel si nécessaire</td></tr>
+</table></div>
+</section>
+
+</main>
+<nav class="bar" aria-label="Navigation">
+<button id="prev" aria-label="Diapositive précédente">Précédent</button>
+<div class="prog"><i id="pb"></i></div>
+<span id="cnt">1 / 1</span>
+<button id="next" aria-label="Diapositive suivante">Suivant</button>
+</nav>
+<script>
+(function(){
+var s=document.querySelectorAll('.slide'),i=0,p=document.getElementById('prev'),n=document.getElementById('next');
+try{var h=parseInt(location.hash.slice(1),10);if(h>=1&&h<=s.length)i=h-1}catch(e){}
+function show(k){
+i=Math.max(0,Math.min(s.length-1,k));
+s.forEach(function(x,j){x.classList.toggle('on',j===i)});
+s[i].scrollTop=0;
+document.getElementById('cnt').textContent=(i+1)+' / '+s.length;
+document.getElementById('pb').style.width=((i+1)/s.length*100)+'%';
+p.disabled=i===0;n.disabled=i===s.length-1;
+}
+p.onclick=function(){show(i-1)};n.onclick=function(){show(i+1)};
+document.addEventListener('keydown',function(e){
+if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){e.preventDefault();show(i+1)}
+else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();show(i-1)}
+else if(e.key==='Home')show(0);else if(e.key==='End')show(s.length-1);
+});
+var KW='public|private|protected|class|record|return|new|for|void|static|final|null|true|false|if|else|throws|extends|implements|import|package';
+var SQL='SELECT|FROM|WHERE|INSERT INTO|DELETE FROM|UPDATE|SET|JOIN FETCH|JOIN|ALTER TABLE|ADD FOREIGN KEY|REFERENCES|ON DELETE CASCADE|ORDER BY|AND|OR';
+var re=new RegExp('(\\/\\/[^\\n]*|--[^\\n]*)|("(?:[^"\\\\\\n]|\\\\.)*")|(@\\w+)|\\b('+SQL+')\\b|\\b('+KW+')\\b|\\b([A-Z][A-Za-z0-9]*)\\b|\\b([a-z]\\w*)(?=\\()|\\b(\\d+L?)\\b','g');
+function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+document.querySelectorAll('pre code').forEach(function(el){
+var out='',last=0,t=el.textContent,m;re.lastIndex=0;
+while((m=re.exec(t))){
+out+=esc(t.slice(last,m.index));
+var c=m[1]?'c':m[2]?'s':m[3]?'a':m[4]?'q':m[5]?'k':m[6]?'t':m[7]?'m':'n';
+out+='<span class="'+c+'">'+esc(m[0])+'</span>';last=re.lastIndex;
+}
+el.innerHTML=out+esc(t.slice(last));
+});
+var x0=null;
+document.addEventListener('touchstart',function(e){x0=e.touches[0].clientX},{passive:true});
+document.addEventListener('touchend',function(e){if(x0===null)return;var d=e.changedTouches[0].clientX-x0;if(Math.abs(d)>70)show(i+(d<0?1:-1));x0=null},{passive:true});
+show(i);
+})();
+</script>
+</body>
+</html>
